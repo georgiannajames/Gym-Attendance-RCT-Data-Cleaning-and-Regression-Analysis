@@ -5,11 +5,6 @@ date: "October 20th, 2021"
 output: pdf_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(include = FALSE)
-```
-
-
 
 # Set up 
 
@@ -21,7 +16,6 @@ library(ggplot2)
 library(stringr)
 library(plotrix)
 library(here)
-library(naniar)
 ```
 
 ## Import Data
@@ -29,9 +23,9 @@ library(naniar)
 
 
 ```{r include=FALSE}
-true_data <- read_csv(here("data", "hoursatgymRCT.csv"))
+raw_data <- read_csv(here("data", "hoursatgymRCT.csv"))
 
-pset1_data <- read_csv(here("data", "hoursatgymRCT.csv"))
+gym_attendance <- read_csv(here("data", "hoursatgymRCT.csv"))
 
 ```
 
@@ -41,7 +35,7 @@ Calculating Average Treatment Effect before cleaning, with no controls
 
 ```{r echo=TRUE}
 
-regression <- lm(hours~treatment, data = true_data)
+regression <- lm(hours~treatment, data = gym_attendance)
 
 
 summary(regression)
@@ -61,7 +55,7 @@ This regression is not statistically significant, with a p value of 0.2714. Howe
 After 30 hours, the hour distribution drops off until around 60 hours and then forms a distribution of a similar shape. I assume that this is because these seemingly unreasonable hour reportings were reported in minutes, so I am going to convert them back to hours by dividing by 60. 
 
 ```{r include=FALSE}
-pset1_data <- pset1_data %>% 
+gym_attendance <- gym_attendance %>% 
   mutate(hours = if_else(hours > 30, hours / 60, hours))
 ```
 
@@ -72,8 +66,8 @@ The community center column is not organized. There are a variety of inputs for 
 
 ```{r include=FALSE}
 ## clean community center
-pset1_data <- 
-  pset1_data %>%
+gym_attendance <- 
+  gym_attendance %>%
   mutate(`community_center` = substr(`community_center`,1,1),
          `community_center` = toupper(`community_center`))
       
@@ -84,8 +78,8 @@ pset1_data <-
 I am going to change all "female" to 1 and all "male" to 0, creating a female dummy variable.
 
 ```{r include=FALSE}
-pset1_data <-
-  pset1_data %>%
+gym_attendance <-
+  gym_attendance %>%
   mutate(`female` = str_replace(`female`, c("female"),"1"),
          `female` = str_replace(`female`, "male", "0"),
          `female` = as.double(`female`))
@@ -98,84 +92,47 @@ I am going change all of the participants whose age is reported as -99 with NA.
 
 
 
-```{r include=FALSE}
-pset1_data <- pset1_data %>% 
-  replace_with_na(age == -99)
-```
 
 ```{r include=FALSE}
-summary(pset1_data$age)
-```
-Changing the -99 age participants to look at the distribution of age is helpful in understanding the population of the study, as well as the relationship between age and hours. When you compare the hour distribution of the previously age =-99 to the rest of the distribution, they look pretty similar, which supports my assumptions to change these to the mean. 
-```{r echo=TRUE}
+gym_attendance <- gym_attendance %>% 
+  mutate(age = na_if(age, -99))
 
-pset1_data %>% 
-  ggplot(aes(age, hours)) +
-  geom_point()
-
-true_data %>% 
-  ggplot(aes(age, hours)) +
-  geom_point()
 ```
+
+
 ## BMI Cleaning
 
-```{r include=FALSE}
-summary(pset1_data$bmi)
-```
-BMI typically falls between 15% and 30%
 
-```{r echo=TRUE}
-pset1_data %>% 
-  ggplot(aes(bmi)) +
-  geom_histogram()
 
-pset1_data %>% 
-  filter(bmi > 0, bmi < 10) %>% 
-  ggplot(aes(bmi)) +
-  geom_histogram()
-```
 
 ```{r include=FALSE}
-pset1_data <- pset1_data %>% 
+gym_attendance <- gym_attendance %>% 
   mutate(bmi = if_else(bmi < 1, bmi * 100, bmi))
 ```
 
 
-```{r echo=TRUE}
-summary(pset1_data$bmi)
+`
 
-summary(true_data$bmi)
+Because these outliers form a similar shaped distribution to the rest of the bmi data and BMI typically falls between 15% and 30%, I assume all the recorded BMI values that are less than 1 were actually bmi's reported as percentages, so I changed these from decimal percentages to numbers by multiplying by 100. For example 0.22 becomes 22. 
 
-```
-
-
-Because these outliers form a similar shaped distribution to the rest of the bmi data, I assume all the recorded BMI values that are less than 1 were actually bmi's reported as percentages, so I changed these from decimal percentages to numbers by multiplying by 100. For example 0.22 becomes 22. 
-
-## Education cleaning
-
-```{r include=FALSE}
-unique(pset1_data$education)
-```
-We have three variables for education, and only three variables were reported! 
 
 
 ## Race_ethnicity cleaning
-```{r include=FALSE}
-unique(pset1_data$race_ethnicity)
-```
 
 There are two different black variables. Assuming that they mean the same thing. I am going to change all black variables to "B." For continuity I will change hispanic to "H", and white to "W". 
 
 ```{r include=FALSE}
-pset1_data <- 
-  pset1_data %>%
+gym_attendance <- 
+  gym_attendance %>%
   mutate(`race_ethnicity` = substr(`race_ethnicity`,1,1),
          `race_ethnicity` = toupper(`race_ethnicity`))
 
-pset1_data$race_ethnicity
+gym_attendance$race_ethnicity
 ```
+
+
 ```{r include=FALSE}
-pset1_data %>%
+gym_attendance %>%
   filter(is.na(race_ethnicity)) %>%
   nrow()
 ```
@@ -184,13 +141,13 @@ Although there are a decent amount of NA's in the NA column, I am going to keep 
 
 
 ```{r echo=TRUE}
-summary(pset1_data)
+summary(gym_attendance)
 ```
 
 ## Question 3 
 
 ```{r echo=TRUE}
-regression <- lm(hours~treatment, data = pset1_data)
+regression <- lm(hours~treatment, data = gym_attendance)
 
 
 summary(regression)
