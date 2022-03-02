@@ -1,0 +1,605 @@
+---
+title: "Gym Attendance RCT Data Cleaning and Regression Analysis"
+author: "Georgianna James"
+date: "October 20th, 2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(include = FALSE)
+```
+
+
+
+# Set up 
+
+## Required Packages 
+
+```{r include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(stringr)
+library(plotrix)
+library(here)
+library(naniar)
+```
+
+## Import Data
+
+
+
+```{r include=FALSE}
+true_data <- read_csv(here("data", "hoursatgymRCT.csv"))
+
+pset1_data <- read_csv(here("data", "hoursatgymRCT.csv"))
+
+```
+
+# Question 1
+
+Calculating Average Treatment Effect before cleaning, with no controls 
+
+```{r echo=TRUE}
+
+regression <- lm(hours~treatment, data = true_data)
+
+
+summary(regression)
+```
+After running a regression, I found an average treatment effect and standard error as follows:
+
+Average Treatment Effect = 6.594
+Standard Error = 5.992
+
+This regression is not statistically significant, with a p value of 0.2714. However, I must clean the data and add controls to determine whether or not this relationship is truly statistically significant. 
+
+
+# Question 2 Data Cleaning 
+
+## Hours Cleaning
+
+After 30 hours, the hour distribution drops off until around 60 hours and then forms a distribution of a similar shape. I assume that this is because these seemingly unreasonable hour reportings were reported in minutes, so I am going to convert them back to hours by dividing by 60. 
+
+```{r include=FALSE}
+pset1_data <- pset1_data %>% 
+  mutate(hours = if_else(hours > 30, hours / 60, hours))
+```
+
+
+## Community Center Cleaning
+
+The community center column is not organized. There are a variety of inputs for both hyde park and woodlawn, when we only have 2 variables. I am going to change all hyde park variables to "H" and all Woodlawn variables to "W" so that there are only two community center groups. 
+
+```{r include=FALSE}
+## clean community center
+pset1_data <- 
+  pset1_data %>%
+  mutate(`community_center` = substr(`community_center`,1,1),
+         `community_center` = toupper(`community_center`))
+      
+```
+
+## Gender Cleaning
+
+I am going to change all "female" to 1 and all "male" to 0, creating a female dummy variable.
+
+```{r include=FALSE}
+pset1_data <-
+  pset1_data %>%
+  mutate(`female` = str_replace(`female`, c("female"),"1"),
+         `female` = str_replace(`female`, "male", "0"),
+         `female` = as.double(`female`))
+```
+
+## Age Cleaning
+
+
+I am going change all of the participants whose age is reported as -99 with NA. 
+
+
+
+```{r include=FALSE}
+pset1_data <- pset1_data %>% 
+  replace_with_na(age == -99)
+```
+
+```{r include=FALSE}
+summary(pset1_data$age)
+```
+Changing the -99 age participants to look at the distribution of age is helpful in understanding the population of the study, as well as the relationship between age and hours. When you compare the hour distribution of the previously age =-99 to the rest of the distribution, they look pretty similar, which supports my assumptions to change these to the mean. 
+```{r echo=TRUE}
+
+pset1_data %>% 
+  ggplot(aes(age, hours)) +
+  geom_point()
+
+true_data %>% 
+  ggplot(aes(age, hours)) +
+  geom_point()
+```
+## BMI Cleaning
+
+```{r include=FALSE}
+summary(pset1_data$bmi)
+```
+BMI typically falls between 15% and 30%
+
+```{r echo=TRUE}
+pset1_data %>% 
+  ggplot(aes(bmi)) +
+  geom_histogram()
+
+pset1_data %>% 
+  filter(bmi > 0, bmi < 10) %>% 
+  ggplot(aes(bmi)) +
+  geom_histogram()
+```
+
+```{r include=FALSE}
+pset1_data <- pset1_data %>% 
+  mutate(bmi = if_else(bmi < 1, bmi * 100, bmi))
+```
+
+
+```{r echo=TRUE}
+summary(pset1_data$bmi)
+
+summary(true_data$bmi)
+
+```
+
+
+Because these outliers form a similar shaped distribution to the rest of the bmi data, I assume all the recorded BMI values that are less than 1 were actually bmi's reported as percentages, so I changed these from decimal percentages to numbers by multiplying by 100. For example 0.22 becomes 22. 
+
+## Education cleaning
+
+```{r include=FALSE}
+unique(pset1_data$education)
+```
+We have three variables for education, and only three variables were reported! 
+
+
+## Race_ethnicity cleaning
+```{r include=FALSE}
+unique(pset1_data$race_ethnicity)
+```
+
+There are two different black variables. Assuming that they mean the same thing. I am going to change all black variables to "B." For continuity I will change hispanic to "H", and white to "W". 
+
+```{r include=FALSE}
+pset1_data <- 
+  pset1_data %>%
+  mutate(`race_ethnicity` = substr(`race_ethnicity`,1,1),
+         `race_ethnicity` = toupper(`race_ethnicity`))
+
+pset1_data$race_ethnicity
+```
+```{r include=FALSE}
+pset1_data %>%
+  filter(is.na(race_ethnicity)) %>%
+  nrow()
+```
+Although there are a decent amount of NA's in the NA column, I am going to keep them because their data is important. 
+
+
+
+```{r echo=TRUE}
+summary(pset1_data)
+```
+
+## Question 3 
+
+```{r echo=TRUE}
+regression <- lm(hours~treatment, data = pset1_data)
+
+
+summary(regression)
+
+```
+After running a regression with the cleaned data, I found a treatment effect and standard deviation of:
+
+average treatment effect: 1.8740
+standard deviation: 0.2233
+
+
+## Question Four 
+
+In order to have true randomization, the treatment and control groups must be otherwise identical to eachother. Additionally there must not be any selection bias in your population that may come from selection bias, self selection into the group, non-compliance, attrition, and many other confounding variables. In order to analzye what went wrong within this randomization, I must evaluate how the covariates influence the output of each group. 
+
+```{r include=FALSE}
+summary(pset1_data)
+
+```
+First I split the participants into tratment and control. 
+
+
+```{r include=FALSE}
+treated <-
+  pset1_data %>% 
+  filter(`treatment` != 0) 
+
+control <-
+  pset1_data %>% 
+  filter(`treatment` == 0)
+```
+
+Calculate mean BMI and age for each:
+```{r echo=TRUE}
+
+mean(control$age)
+mean(treated$age)
+```
+The mean age of the control group is 32.37, while the mean age of the treatment is 31.35.
+```{r echo=TRUE}
+mean(control$bmi)
+mean(treated$bmi)
+```
+Similarly, the mean BMI of the control group is 29.84, while the mean BMI of the treated in 27.79.
+
+This means that the groups are not identical in mean age or mean BMI. If age and BMI influence the treatment effect, they must be controlled for. 
+
+```{r include=FALSE}
+mean(control$hours)
+mean(treated$hours)
+```
+Looking at race distribution across treatment and control:
+```{r echo=FALSE}
+control %>%
+  filter(race_ethnicity == "B") %>%
+  nrow()
+control %>%
+  filter(race_ethnicity == "W") %>%
+  nrow()
+control %>%
+  filter(race_ethnicity == "H") %>%
+  nrow()
+```
+The control group has 194 black participants, 206 white participants, and 86 hispanic participants. 
+```{r echo=FALSE}
+treated %>%
+  filter(race_ethnicity == "B") %>%
+  nrow()
+treated %>%
+  filter(race_ethnicity == "W") %>%
+  nrow()
+treated %>%
+  filter(race_ethnicity == "H") %>%
+  nrow()
+```
+The treated group has 315 black participants, 120 white participants, and 51 hispanic participants.
+
+The race distribution is very different between the treatment and control groups.
+
+Next, look at community center distribution:
+
+```{r echo=FALSE}
+control %>%
+  filter(community_center == "W") %>%
+  nrow()
+control %>%
+  filter(community_center == "H") %>%
+  nrow()
+```
+The control group has 150 participants at Woodlawn and 350 at Hyde Park. 
+```{r echo=FALSE}
+treated %>%
+  filter(community_center == "W") %>%
+  nrow()
+treated %>%
+  filter(community_center == "H") %>%
+  nrow()
+```
+The treated group had 350 at Woodlawn and 150 at Hyde Park. 
+
+The distribution between community center is very imbalanced between control and treatment. 
+
+Now I will try to tease out relationships... 
+
+First, I am going to plot age vs hours and bmi vs hours to see if there is a visual relationship. 
+
+```{r echo=TRUE}
+pset1_data %>% 
+  ggplot(aes(age, hours)) +
+  geom_point() +
+  geom_smooth()
+
+pset1_data %>% 
+  ggplot(aes(bmi, hours)) +
+  geom_point() +
+  geom_smooth()
+```
+Visually, there is a negative relationship between both age and hours and bmi and hours. Now, I will run a regression to double check to see that this relationship is statistically significant. 
+
+```{r echo=TRUE}
+regression <- lm(hours~bmi, data = pset1_data)
+
+
+summary(regression)
+```
+
+
+```{r echo=TRUE}
+regression <- lm(hours~age, data = pset1_data)
+
+
+summary(regression)
+```
+Both BMI (treatment effect = -0.28) and age (treatment effect = -0.16)  have significant effects on hours spent at the gym. While the averages between groups for both BMI and age were similar, they were both higher for the control group. Because both variables have a negative relationship with hours spent at a gym, and the control group had higher mean age and bmi, this may account for the control groups lower mean hours.  
+
+```{r echo=TRUE}
+regression <- lm(hours~community_center, data = pset1_data)
+
+
+summary(regression)
+```
+After running a regression I found that simply participating in this experiment at Woodlawn had a large, positive, statistically significant impact on hours reported. The effect of being at Woodlawn on hours was 2.674. The treatment group had 350/500 participants at Woodlawn while the control group had 150/500. This is a very significant confounding variale. While mediators such as convenience, accessibility, or proximity to facility may be influencing this relationship, it was captured by the community center variable.
+
+What about race?
+
+I split groups up by race.
+
+```{r include=FALSE}
+black_participants <-
+  pset1_data %>% 
+  filter(`race_ethnicity` == "B")
+```
+Mean hours of black participants: 6.39
+```{r echo=TRUE}
+mean(black_participants$hours)
+```
+```{r echo=TRUE}
+regression <- lm(hours~treatment, data = black_participants)
+
+
+summary(regression)
+```
+Treatment effect on black participants: 1.6146
+
+```{r include=FALSE}
+white_participants <-
+  pset1_data %>% 
+  filter(`race_ethnicity` == "W")
+```
+
+Mean hours of white participants:7.14
+```{r echo=TRUE}
+mean(white_participants$hours)
+```
+```{r echo=TRUE}
+regression <- lm(hours~treatment, data = white_participants)
+
+
+summary(regression)
+```
+Treatment effect on white participants: 2.4059
+
+```{r include=FALSE}
+hispanic_participants <-
+  pset1_data %>% 
+  filter(`race_ethnicity` == "H")
+```
+
+Mean hours of hispanic participants: 5.71
+```{r echo=TRUE}
+mean(hispanic_participants$hours)
+```
+
+
+```{r echo=TRUE}
+regression <- lm(hours~treatment, data = hispanic_participants)
+
+
+summary(regression)
+```
+Treatment effect on hispanic participants: 2.89
+
+The treatment effect varies by race. 
+
+Race also influences hours participated. Is this just due to age and bmi?
+
+Mean bmi for hispanic participants = 30.2 , white participants = 29.87, black participants = 27.76 
+```{r echo=FALSE}
+mean(hispanic_participants$bmi)
+mean(white_participants$bmi)
+mean(black_participants$bmi)
+
+
+```
+Mean age for hispanic participants=33.48 white participants=32.44, black participants=31.11 
+```{r echo=FALSE}
+mean(hispanic_participants$age)
+mean(white_participants$age)
+mean(black_participants$age)
+```
+Mean age and BMI varies by race, as well, wich could account for the relationship between race and hours. Hispanic participants have the lowest mean hours, but also the highest mean age and bmi.
+
+To check, run a regression on the relationship between race and hours, controlling for age and BMI...
+
+```{r echo=TRUE}
+regression <- lm(hours~race_ethnicity + age + bmi, data = pset1_data)
+
+
+summary(regression)
+```
+It looks like, regardless of bmi and age, race is still a confounding variable that should be controlled for. 
+
+Next, dividing participants up by community center: 
+```{r include=FALSE}
+woodlawn_participants <-
+  pset1_data %>% 
+  filter(`community_center` == "W")
+
+hydepark_participants <-
+  pset1_data %>% 
+  filter(`community_center` == "H")
+```
+
+Calculating the mean hours of Woodlawn participants versus Hyde Park: 
+```{r echo=FALSE}
+mean(woodlawn_participants$hours)
+mean(hydepark_participants$hours)
+```
+Woodlawn is much higher, 7.886, than HP, 5.212. How do I know that this isn't just because there were more Woodlawn participants in the treatment group?
+
+Dividing community center groups into treated and control:
+
+```{r include=FALSE}
+treatedwoodlawn_participants <-
+  treated %>% 
+  filter(`community_center` == "W")
+
+treatedhydepark_participants <-
+  treated %>% 
+  filter(`community_center` == "H")
+```
+
+Calculating the mean of the treated participants in Woodlawn and comparing it to the mean of treated participants in Hyde Park:
+```{r echo=TRUE}
+mean(treatedwoodlawn_participants$hours)
+mean(treatedhydepark_participants$hours)
+```
+The treated participants in Woodlawn have a higher mean hours of 8.09 than at Hyde Park, 6.07.The relationship is even more pronounced even within the treatment group.
+
+What about the control groups? 
+
+```{r include=FALSE}
+controlwoodlawn_participants <-
+  control %>% 
+  filter(`community_center` == "W")
+
+controlhydepark_participants <-
+  control %>% 
+  filter(`community_center` == "H")
+```
+
+Calculating the mean of control participants at Woodlawn and comparing it to control participants at Hyde Park: 
+```{r echo=TRUE}
+mean(controlwoodlawn_participants$hours)
+mean(controlhydepark_participants$hours)
+```
+The hours for the control participants at Woodlawn are still higher, 7.42 than at Hyde Park, 4.84. This means that the Woodlawn participants are reporting higher hours regardless of treatment.
+
+When you control for treatment, the effect of the community center still holds. So, we should control for community center to see if the treatment effect truly holds.
+
+Next I want to run a regression on the effect of the treatment on hours in each community center: 
+
+Woodlawn:
+```{r echo=TRUE}
+regression <- lm(hours~treatment, data = woodlawn_participants)
+
+
+summary(regression)
+```
+treatment effect: 0.67 p value: 0.058
+
+Hyde Park:
+
+treatment effect:1.25 p value: 5.218e-05
+
+```{r echo=TRUE}
+regression <- lm(hours~treatment, data = hydepark_participants)
+
+
+summary(regression)
+```
+The treatment effect is only statistically significant within the Hyde Park participants.
+
+Perhaps this is due to the Woodlawn participants being younger and healthier. Let's compare their means:
+
+Mean Age
+Treated HP= 35.44
+Control HP = 34.07
+All HP = 34.48
+
+
+```{r echo=FALSE}
+mean(treatedhydepark_participants$age)
+mean(controlhydepark_participants$age)
+mean(hydepark_participants$age)
+```
+What about Woodlawn?
+Mean Age
+Treated W= 29.59
+Control W=28.4
+All W =29.23
+
+```{r echo=FALSE}
+mean(treatedwoodlawn_participants$age)
+mean(controlwoodlawn_participants$age)
+mean(woodlawn_participants$age)
+```
+The mean age for Woodlawn is significantly lower than at Hyde park. 
+
+What about mean BMI? 
+
+Woodlawn mean BMI=26.39
+HP mean BMI=31.25
+
+```{r echo=FALSE}
+mean(woodlawn_participants$bmi)
+mean(hydepark_participants$bmi)
+```
+The mean bmi is signicantly lower at Woodlawn.
+
+I want to run a regression on the relationship between community center and hours controlling for BMI and age to see if these factors account for the difference in treatment effects between the two. 
+
+```{r echo=TRUE}
+regression <- lm(hours~community_center + age + bmi, data = pset1_data)
+
+
+summary(regression)
+```
+Even when you adjust for age and bmi, community center still has a large effect on hours. This means there must be some other mediator associated with Woodlawn that is influencing the treatment effect. Perhaps something like accessibility, proximity or functionality. 
+
+Next I will check for gender variables. 
+```{r include=FALSE}
+female_participants <-
+  pset1_data %>% 
+  filter(female == 0)
+
+male_participants <-
+  pset1_data %>% 
+  filter(female == 1)
+```
+
+Comparing the mean hours between males and females: 
+```{r echo=FALSE}
+mean(female_participants$hours)
+mean(male_participants$hours)
+```
+They are the same! No need to control for gender. 
+
+
+## Question Five 
+
+When you look at the treatment effect within each community center, you find that there is no statistically significant effect at Woodlawn, while there is at Hyde Park. The participants who participate at Woodlawn are on average younger and healthier (by bmi standards) than at Hyde Park, so it seems they may be working out more regardless of treatment. This may be an example of some sort of selection bias. For some reason, Steve selected younger and healthier participants than Eric. In the case of the Hype Park participants, who have a higher average BMI as well as a higher average age, the treatment effect is statistically significant. For some reason, those in Eric's group responded more strongly to the treatment than Steve's.The issue with this selection bias is that the majority of the treatment group is at Woodlawn. I initially assumes that the entire difference between the two centers was due to age and BMI, however, even when I adjusted for age and BMI, community center still had a large effect on hours, so you must adjsut for community center, as well.  
+
+Additionally, race may be a confounding variable. When you split the participants by race, you find that the treatment effect varies according to race. Even when controlling for age and BMI, race has a significant impact on the treatment effect.
+
+In order to know the true treatment effect, you must control for race, community center, age, amd BMI.
+
+## Question 6
+
+Running a regression, controlling for race, community center, age and bmi. 
+
+
+```{r echo=FALSE}
+regression <- lm(hours~treatment + community_center + age + bmi + race_ethnicity, data = pset1_data)
+
+
+summary(regression)
+```
+
+Average treatment effect = 1.18492
+
+Std error: .20416
+
+
+
+
+
+
+
+
+
+
