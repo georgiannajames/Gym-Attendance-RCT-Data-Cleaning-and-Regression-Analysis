@@ -1,0 +1,27 @@
+
+Effects of Treatment (Controlling for community center and gender)
+===============================================
+                        Dependent variable:    
+                    ---------------------------
+                               Hours           
+-----------------------------------------------
+Treatment                    0.948***          
+                              (0.219)          
+                                               
+Community Center             2.001***          
+                              (0.221)          
+                                               
+Female                       -2.333***         
+                              (0.208)          
+                                               
+Control Mean                 6.495***          
+                              (0.210)          
+                                               
+-----------------------------------------------
+Observations                   1,000           
+R2                             0.244           
+Adjusted R2                    0.242           
+Residual Std. Error      3.179 (df = 996)      
+F Statistic          107.330*** (df = 3; 996)  
+===============================================
+Note:               *p<0.1; **p<0.05; ***p<0.01
